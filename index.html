@@ -9,8 +9,17 @@
 <body>
     <div class="container">
         <header>
-            <h1>Nester</h1>
-            <p class="subtitle">Paper Segment & Ring Nesting Optimizer</p>
+            <div class="brand-row">
+                <img
+                    class="brand-logo"
+                    src="assets/miba-logo.svg"
+                    alt="Miba Logo"
+                >
+                <div>
+                    <h1>Nester</h1>
+                    <p class="subtitle">Paper Segment & Ring Nesting Optimizer</p>
+                </div>
+            </div>
         </header>
 
         <main>
@@ -51,7 +60,6 @@
                             <label for="dxfUpload">Upload DXF File:</label>
                             <input type="file" id="dxfUpload" accept=".dxf">
                         </div>
-                        <button id="loadSample" class="btn-secondary" style="width: 100%; margin-top: 8px;">Load Sample DXF</button>
                         <div id="geometryInfo" class="info-box">
                             No file loaded
                         </div>
@@ -60,15 +68,8 @@
                     <div class="section">
                         <h2>Orientation Options</h2>
                         <div class="input-group">
-                            <label for="orientations">Number of Orientations:</label>
-                            <select id="orientations">
-                                <option value="1">1 (No Rotation)</option>
-                                <option value="2">2 (0°, 90°)</option>
-                                <option value="4">4 (0°, 90°, 180°, 270°)</option>
-                                <option value="8">8 (45° steps)</option>
-                                <option value="16">16 (22.5° steps)</option>
-                                <option value="360">360 (All angles)</option>
-                            </select>
+                            <label for="orientations">Max Distinct Orientations:</label>
+                            <input type="number" id="orientations" value="2" min="1" max="360" step="1">
                         </div>
                     </div>
 
@@ -76,15 +77,44 @@
                         <h2>Algorithm Settings</h2>
                         <div class="input-group">
                             <label for="sheetsLimit">Max Sheets:</label>
-                            <input type="number" id="sheetsLimit" value="10" min="1" max="100" step="1">
+                            <input type="number" id="sheetsLimit" value="1" min="1" max="100" step="1">
                         </div>
                         <div class="input-group">
-                            <label for="populationSize">Population Size:</label>
-                            <input type="number" id="populationSize" value="50" min="10" max="200" step="10">
+                            <label for="randomSeed">Random Seed:</label>
+                            <input type="number" id="randomSeed" value="2026" min="1" step="1">
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Constraint Check</h2>
+                        <div id="constraintsInfo" class="info-box">
+                            Waiting for geometry and settings...
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Settings</h2>
+                        <div class="input-group">
+                            <label for="exportDimensions">
+                                <input type="checkbox" id="exportDimensions">
+                                Include placement dimensions in exports
+                            </label>
                         </div>
                         <div class="input-group">
-                            <label for="generations">Generations:</label>
-                            <input type="number" id="generations" value="100" min="10" max="500" step="10">
+                            <label for="drawingNo">Drawing No:</label>
+                            <input type="text" id="drawingNo" value="" placeholder="e.g. 623CA36250-LS">
+                        </div>
+                        <div class="input-group">
+                            <label for="sheetLabelTemplate">Sheet Label Template:</label>
+                            <input type="text" id="sheetLabelTemplate" value="{drawingNo} | Segments {segments} | Utilization {utilization}%">
+                        </div>
+                        <div class="info-box">
+                            Placeholders: <code>{drawingNo}</code>, <code>{sheetNumber}</code>, <code>{totalSheets}</code>, <code>{segments}</code>, <code>{utilization}</code>, <code>{angles}</code>
+                        </div>
+                        <div class="settings-actions">
+                            <button id="saveDefaults" class="btn-secondary" type="button">Save As Default</button>
+                            <button id="loadDefaults" class="btn-secondary" type="button">Load Defaults</button>
+                            <button id="resetDefaults" class="btn-secondary" type="button">Reset Defaults</button>
                         </div>
                     </div>
 
@@ -105,14 +135,17 @@
 
                     <div class="results-panel">
                         <h2>Results</h2>
-                        <div id="resultsInfo" class="info-box">
-                            <p>Waiting for optimization...</p>
+                        <div id="resultsInfo">
+                            <div class="info-box">
+                                <p>Waiting for optimization...</p>
+                            </div>
                         </div>
                         <div id="statisticsTable"></div>
                         <div class="button-group">
-                            <button id="exportResults" class="btn-secondary" disabled>Export Results</button>
-                            <button id="nextSheet" class="btn-secondary" disabled>Next Sheet</button>
-                            <button id="prevSheet" class="btn-secondary" disabled>Previous Sheet</button>
+                            <button id="exportResults" class="btn-secondary" disabled>Export PDF</button>
+                            <button id="exportCsv" class="btn-secondary" disabled>Export CSV</button>
+                            <button id="exportJson" class="btn-secondary" disabled>Export JSON</button>
+                            <button id="exportSvg" class="btn-secondary" disabled>Export SVG</button>
                         </div>
                     </div>
                 </section>
@@ -120,7 +153,15 @@
         </main>
 
         <footer>
-            <p>&copy; 2026 Nester - Paper Nesting Optimization Tool</p>
+            <p>
+                &copy; 2026 Nester - Paper Nesting Optimization Tool
+                <span class="footer-sep">•</span>
+                <a
+                    id="gssnbrMailLink"
+                    href="mailto:development@gssnbr.com"
+                    onclick="window.location.href='mailto:development@gssnbr.com'; return false;"
+                >by Gssnbr</a>
+            </p>
         </footer>
     </div>
 
@@ -129,6 +170,11 @@
     <script src="js/dxf-parser.js"></script>
     <script src="js/visualization.js"></script>
     <script src="js/nester.js"></script>
+    <script>
+        // Set this to your GitHub Gist RAW URL. Content must be either "0" or "1".
+        // Example: https://gist.githubusercontent.com/<user>/<id>/raw/killswitch.txt
+        window.NESTER_KILLSWITCH_GIST_RAW_URL = 'https://gist.githubusercontent.com/danuilds/8e8340cdbbed9b354177ea90be36232d/raw/gistfile1.txt';
+    </script>
     <script src="js/app.js"></script>
 </body>
 </html>

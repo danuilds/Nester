@@ -1,356 +1,503 @@
 /**
- * Simple DXF Parser
- * Supports basic DXF entities (lines, circles, polygons, polylines)
+ * DXF parser for basic 2D nesting entities.
+ * Supports CIRCLE, LINE, LWPOLYLINE and POLYLINE(VERTEX/SEQEND).
  */
 class DXFParser {
     static parse(dxfText) {
-        const lines = dxfText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        const tokens = dxfText
+            .replace(/\r/g, '')
+            .split('\n')
+            .map(line => line.trim());
+
         const entities = [];
-        
-        console.log('DXF Parser: Processing', lines.length, 'lines');
-        
-        // Find ENTITIES section
-        let entityStart = -1;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].toUpperCase() === 'ENTITIES') {
-                entityStart = i + 1;
-                console.log('Found ENTITIES section at line', i, ', starting parse at', entityStart);
-                break;
+        let inEntities = false;
+        let i = 0;
+
+        while (i < tokens.length - 1) {
+            const code = tokens[i];
+            const value = tokens[i + 1] || '';
+
+            if (code === '2' && value.toUpperCase() === 'ENTITIES') {
+                inEntities = true;
+                i += 2;
+                continue;
             }
-        }
 
-        if (entityStart === -1) {
-            console.warn('No ENTITIES section found in DXF');
-            return this.processEntities([]);
-        }
-
-        // Parse entities
-        let i = entityStart;
-        while (i < lines.length) {
-            const line = lines[i].toUpperCase();
-
-            if (line === 'ENDSEC') {
-                console.log('Found ENDSEC at line', i);
+            if (inEntities && code === '0' && value.toUpperCase() === 'ENDSEC') {
                 break;
             }
 
-            // DXF format: code 0 indicates entity type
-            const code = parseInt(lines[i]);
-            
-            if (code === 0 && i + 1 < lines.length) {
-                const entityType = lines[i + 1].toUpperCase();
-                console.log('Found entity type:', entityType);
-                
-                if (entityType === 'CIRCLE') {
-                    const entity = this.parseCircle(lines, i + 2);
-                    if (entity.entity) {
-                        console.log('Parsed circle:', entity.entity);
-                        entities.push(entity.entity);
-                    }
-                    i = entity.nextIndex;
-                } else if (entityType === 'LINE') {
-                    const entity = this.parseLine(lines, i + 2);
-                    if (entity.entity) {
-                        console.log('Parsed line:', entity.entity);
-                        entities.push(entity.entity);
-                    }
-                    i = entity.nextIndex;
-                } else if (entityType === 'LWPOLYLINE' || entityType === 'POLYLINE') {
-                    const entity = this.parsePolyline(lines, i + 2);
-                    if (entity.entity) {
-                        console.log('Parsed polyline with', entity.entity.points.length, 'points');
-                        entities.push(entity.entity);
-                    }
-                    i = entity.nextIndex;
-                } else if (entityType === 'RECT' || entityType === 'RECTANGLE') {
-                    const entity = this.parseRectangle(lines, i + 2);
-                    if (entity.entity) {
-                        console.log('Parsed rectangle:', entity.entity);
-                        entities.push(entity.entity);
-                    }
-                    i = entity.nextIndex;
-                } else {
-                    i += 2;
-                }
-            } else {
-                i++;
+            if (!inEntities) {
+                i += 2;
+                continue;
             }
-        }
 
-        console.log('DXF Parser: Found', entities.length, 'entities');
-        const finalShapes = this.processEntities(entities);
-        console.log('DXF Parser: processEntities returned:', finalShapes);
-        console.log('DXF Parser: returned array is valid:', Array.isArray(finalShapes), 'length:', finalShapes.length);
-        return finalShapes;
-    }
+            if (code !== '0') {
+                i += 2;
+                continue;
+            }
 
-    static parseLine(lines, startIndex) {
-        let x1 = null, y1 = null, x2 = null, y2 = null;
-        let i = startIndex;
+            const entityType = value.toUpperCase();
 
-        while (i < lines.length) {
-            const code = parseInt(lines[i]);
-            
-            if (isNaN(code) || code === 0) break;
-            if (i + 1 >= lines.length) break;
+            if (entityType === 'CIRCLE') {
+                const parsed = this.parseCircle(tokens, i + 2);
+                if (parsed.entity) entities.push(parsed.entity);
+                i = parsed.nextIndex;
+                continue;
+            }
 
-            const value = lines[i + 1];
-            
-            if (code === 8) {} // Layer, skip
-            else if (code === 10) x1 = parseFloat(value);
-            else if (code === 20) y1 = parseFloat(value);
-            else if (code === 30) {} // Z coordinate, ignore
-            else if (code === 11) x2 = parseFloat(value);
-            else if (code === 21) y2 = parseFloat(value);
-            else if (code === 31) {} // Z coordinate, ignore
+            if (entityType === 'LINE') {
+                const parsed = this.parseLine(tokens, i + 2);
+                if (parsed.entity) entities.push(parsed.entity);
+                i = parsed.nextIndex;
+                continue;
+            }
+
+            if (entityType === 'LWPOLYLINE') {
+                const parsed = this.parseLwPolyline(tokens, i + 2);
+                if (parsed.entity) entities.push(parsed.entity);
+                i = parsed.nextIndex;
+                continue;
+            }
+
+            if (entityType === 'POLYLINE') {
+                const parsed = this.parsePolyline(tokens, i + 2);
+                if (parsed.entity) entities.push(parsed.entity);
+                i = parsed.nextIndex;
+                continue;
+            }
+
+            if (entityType === 'ARC') {
+                const parsed = this.parseArc(tokens, i + 2);
+                if (parsed.entity) entities.push(parsed.entity);
+                i = parsed.nextIndex;
+                continue;
+            }
+
+            if (entityType === 'SOLID') {
+                const parsed = this.parseSolid(tokens, i + 2);
+                if (parsed.entity) entities.push(parsed.entity);
+                i = parsed.nextIndex;
+                continue;
+            }
+
+            if (entityType === 'RECT' || entityType === 'RECTANGLE') {
+                const parsed = this.parseRectangle(tokens, i + 2);
+                if (parsed.entity) entities.push(parsed.entity);
+                i = parsed.nextIndex;
+                continue;
+            }
 
             i += 2;
         }
 
-        if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
-            return {
-                entity: { type: 'line', x1, y1, x2, y2 },
-                nextIndex: i
-            };
-        }
-        return { entity: null, nextIndex: i };
+        return this.processEntities(entities);
     }
 
-    static parseCircle(lines, startIndex) {
-        let x = null, y = null, radius = null;
+    static parseCircle(tokens, startIndex) {
+        let x = null;
+        let y = null;
+        let radius = null;
         let i = startIndex;
 
-        while (i < lines.length) {
-            const code = parseInt(lines[i]);
-            
-            if (isNaN(code) || code === 0) break;
-            if (i + 1 >= lines.length) break;
+        while (i < tokens.length - 1) {
+            if (tokens[i] === '0') break;
+            const code = parseInt(tokens[i], 10);
+            const value = tokens[i + 1];
 
-            const value = lines[i + 1];
-
-            if (code === 8) {} // Layer, skip
-            else if (code === 10) x = parseFloat(value);
-            else if (code === 20) y = parseFloat(value);
-            else if (code === 30) {} // Z coordinate, ignore
-            else if (code === 40) radius = parseFloat(value);
+            if (code === 10) x = parseFloat(value);
+            if (code === 20) y = parseFloat(value);
+            if (code === 40) radius = parseFloat(value);
 
             i += 2;
         }
 
-        if (x !== null && y !== null && radius !== null && radius > 0) {
-            return {
-                entity: { type: 'circle', x, y, radius },
-                nextIndex: i
-            };
+        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(radius) && radius > 0) {
+            return { entity: { type: 'circle', x, y, radius }, nextIndex: i };
         }
+
         return { entity: null, nextIndex: i };
     }
 
-    static parsePolyline(lines, startIndex) {
+    static parseLine(tokens, startIndex) {
+        let x1 = null;
+        let y1 = null;
+        let x2 = null;
+        let y2 = null;
+        let i = startIndex;
+
+        while (i < tokens.length - 1) {
+            if (tokens[i] === '0') break;
+            const code = parseInt(tokens[i], 10);
+            const value = tokens[i + 1];
+
+            if (code === 10) x1 = parseFloat(value);
+            if (code === 20) y1 = parseFloat(value);
+            if (code === 11) x2 = parseFloat(value);
+            if (code === 21) y2 = parseFloat(value);
+
+            i += 2;
+        }
+
+        if (
+            Number.isFinite(x1) && Number.isFinite(y1) &&
+            Number.isFinite(x2) && Number.isFinite(y2)
+        ) {
+            return { entity: { type: 'line', x1, y1, x2, y2 }, nextIndex: i };
+        }
+
+        return { entity: null, nextIndex: i };
+    }
+
+    static parseLwPolyline(tokens, startIndex) {
+        let i = startIndex;
         const points = [];
-        let i = startIndex;
         let currentX = null;
 
-        while (i < lines.length) {
-            const code = parseInt(lines[i]);
-            
-            if (isNaN(code) || code === 0) break;
-            if (i + 1 >= lines.length) break;
+        while (i < tokens.length - 1) {
+            if (tokens[i] === '0') break;
+            const code = parseInt(tokens[i], 10);
+            const value = tokens[i + 1];
 
             if (code === 10) {
-                // X coordinate - save it for later when we get Y
-                currentX = parseFloat(lines[i + 1]);
-                console.log('Found X:', currentX);
-            } else if (code === 20 && currentX !== null) {
-                // Y coordinate - now we can create the point
-                const y = parseFloat(lines[i + 1]);
-                if (!isNaN(currentX) && !isNaN(y)) {
-                    points.push({ x: currentX, y: y });
-                    console.log('Added point:', { x: currentX, y });
-                    currentX = null;
-                }
+                currentX = parseFloat(value);
             }
-            
+
+            if (code === 20 && currentX !== null) {
+                const y = parseFloat(value);
+                if (Number.isFinite(currentX) && Number.isFinite(y)) {
+                    points.push({ x: currentX, y });
+                }
+                currentX = null;
+            }
+
             i += 2;
         }
 
-        console.log('Polyline parsed with', points.length, 'points:', points);
-        
         if (points.length >= 3) {
-            return {
-                entity: { type: 'polygon', points },
-                nextIndex: i
-            };
+            return { entity: { type: 'polygon', points }, nextIndex: i };
         }
+
         return { entity: null, nextIndex: i };
     }
 
-    static parseRectangle(lines, startIndex) {
-        let x = null, y = null, width = null, height = null;
+    static parsePolyline(tokens, startIndex) {
         let i = startIndex;
+        const points = [];
 
-        while (i < lines.length) {
-            const code = parseInt(lines[i]);
-            
-            if (isNaN(code) || code === 0) break;
-            if (i + 1 >= lines.length) break;
+        while (i < tokens.length - 1) {
+            const code = tokens[i];
+            const value = (tokens[i + 1] || '').toUpperCase();
 
-            const value = lines[i + 1];
+            if (code === '0' && value === 'SEQEND') {
+                i += 2;
+                break;
+            }
 
-            if (code === 8) {} // Layer, skip
-            else if (code === 10) x = parseFloat(value);
-            else if (code === 20) y = parseFloat(value);
-            else if (code === 40) width = parseFloat(value);
-            else if (code === 41) height = parseFloat(value);
+            if (code === '0' && value === 'VERTEX') {
+                const vertex = this.parseVertex(tokens, i + 2);
+                if (vertex.point) points.push(vertex.point);
+                i = vertex.nextIndex;
+                continue;
+            }
 
             i += 2;
         }
 
-        if (x !== null && y !== null && width !== null && height !== null) {
+        if (points.length >= 3) {
+            return { entity: { type: 'polygon', points }, nextIndex: i };
+        }
+
+        return { entity: null, nextIndex: i };
+    }
+
+    static parseVertex(tokens, startIndex) {
+        let x = null;
+        let y = null;
+        let i = startIndex;
+
+        while (i < tokens.length - 1) {
+            if (tokens[i] === '0') break;
+            const code = parseInt(tokens[i], 10);
+            const value = tokens[i + 1];
+
+            if (code === 10) x = parseFloat(value);
+            if (code === 20) y = parseFloat(value);
+
+            i += 2;
+        }
+
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            return { point: { x, y }, nextIndex: i };
+        }
+
+        return { point: null, nextIndex: i };
+    }
+
+    static parseRectangle(tokens, startIndex) {
+        let x = null;
+        let y = null;
+        let width = null;
+        let height = null;
+        let i = startIndex;
+
+        while (i < tokens.length - 1) {
+            if (tokens[i] === '0') break;
+            const code = parseInt(tokens[i], 10);
+            const value = tokens[i + 1];
+
+            if (code === 10) x = parseFloat(value);
+            if (code === 20) y = parseFloat(value);
+            if (code === 40) width = parseFloat(value);
+            if (code === 41) height = parseFloat(value);
+
+            i += 2;
+        }
+
+        if (
+            Number.isFinite(x) && Number.isFinite(y) &&
+            Number.isFinite(width) && Number.isFinite(height)
+        ) {
+            return { entity: { type: 'rectangle', x, y, width, height }, nextIndex: i };
+        }
+
+        return { entity: null, nextIndex: i };
+    }
+
+    static parseArc(tokens, startIndex) {
+        let x = null;
+        let y = null;
+        let radius = null;
+        let startAngle = null;
+        let endAngle = null;
+        let i = startIndex;
+
+        while (i < tokens.length - 1) {
+            if (tokens[i] === '0') break;
+            const code = parseInt(tokens[i], 10);
+            const value = tokens[i + 1];
+
+            if (code === 10) x = parseFloat(value);
+            if (code === 20) y = parseFloat(value);
+            if (code === 40) radius = parseFloat(value);
+            if (code === 50) startAngle = parseFloat(value);
+            if (code === 51) endAngle = parseFloat(value);
+
+            i += 2;
+        }
+
+        if (
+            Number.isFinite(x) && Number.isFinite(y) &&
+            Number.isFinite(radius) && radius > 0 &&
+            Number.isFinite(startAngle) && Number.isFinite(endAngle)
+        ) {
             return {
-                entity: { type: 'rectangle', x, y, width, height },
+                entity: { type: 'arc', x, y, radius, startAngle, endAngle },
                 nextIndex: i
             };
         }
+
+        return { entity: null, nextIndex: i };
+    }
+
+    static parseSolid(tokens, startIndex) {
+        const points = [];
+        let i = startIndex;
+        const xValues = {};
+        const yValues = {};
+
+        while (i < tokens.length - 1) {
+            if (tokens[i] === '0') break;
+            const code = parseInt(tokens[i], 10);
+            const value = parseFloat(tokens[i + 1]);
+
+            if (code >= 10 && code <= 13) {
+                xValues[code - 10] = value;
+            }
+
+            if (code >= 20 && code <= 23) {
+                yValues[code - 20] = value;
+            }
+
+            i += 2;
+        }
+
+        for (let idx = 0; idx < 4; idx++) {
+            if (Number.isFinite(xValues[idx]) && Number.isFinite(yValues[idx])) {
+                points.push({ x: xValues[idx], y: yValues[idx] });
+            }
+        }
+
+        if (points.length >= 3) {
+            return { entity: { type: 'polygon', points }, nextIndex: i };
+        }
+
         return { entity: null, nextIndex: i };
     }
 
     static processEntities(entities) {
         const shapes = [];
-        const lineSegments = [];
+        const lines = [];
 
-        console.log('Processing', entities.length, 'entities');
-        
-        entities.forEach((entity, idx) => {
-            console.log('Entity', idx, ':', entity);
-            
+        for (const entity of entities) {
             if (entity.type === 'circle') {
-                const shape = Geometry.createCircle(entity.x, entity.y, entity.radius);
-                console.log('Created circle shape:', shape);
-                shapes.push(shape);
+                shapes.push(Geometry.createCircle(entity.x, entity.y, entity.radius));
             } else if (entity.type === 'polygon') {
-                const shape = Geometry.createPolygon(entity.points);
-                console.log('Created polygon shape:', shape);
-                shapes.push(shape);
+                shapes.push(Geometry.createPolygon(this.cleanPolygonPoints(entity.points)));
             } else if (entity.type === 'rectangle') {
-                const shape = Geometry.createRectangle(entity.x, entity.y, entity.width, entity.height);
-                console.log('Created rectangle shape:', shape);
-                shapes.push(shape);
+                shapes.push(Geometry.createRectangle(entity.x, entity.y, entity.width, entity.height));
             } else if (entity.type === 'line') {
-                // Store line segments to combine them later
-                lineSegments.push(entity);
-                console.log('Added line segment');
-            } else {
-                console.warn('Unknown entity type:', entity.type);
-            }
-        });
-
-        // Convert line segments into shapes
-        if (lineSegments.length > 0) {
-            console.log('Converting', lineSegments.length, 'line segments');
-            
-            // Try to combine connected lines into polygons
-            const polygons = this.combineLineSegments(lineSegments);
-            polygons.forEach(polygon => {
-                shapes.push(polygon);
-            });
-            
-            // If no polygons created, convert remaining lines to thin rectangles
-            if (polygons.length === 0 && lineSegments.length > 0) {
-                console.log('Creating rectangles from lines');
-                lineSegments.forEach(line => {
-                    const dx = line.x2 - line.x1;
-                    const dy = line.y2 - line.y1;
-                    const length = Math.sqrt(dx * dx + dy * dy);
-                    const thickness = Math.max(2, length * 0.05); // 5% thickness or min 2mm
-                    
-                    // Create a thin rectangle representing the line
-                    const minX = Math.min(line.x1, line.x2) - thickness / 2;
-                    const minY = Math.min(line.y1, line.y2) - thickness / 2;
-                    const width = Math.max(length, thickness);
-                    const height = thickness;
-                    
-                    const shape = Geometry.createRectangle(minX, minY, width, height);
-                    console.log('Created rectangle from line');
-                    shapes.push(shape);
-                });
+                lines.push(entity);
+            } else if (entity.type === 'arc') {
+                const approxLines = this.arcToLineSegments(entity, 18);
+                lines.push(...approxLines);
             }
         }
 
-        console.log('Final shapes count:', shapes.length);
+        const polygonsFromLines = this.combineLineSegments(lines);
+        for (const polygon of polygonsFromLines) {
+            shapes.push(Geometry.createPolygon(this.cleanPolygonPoints(polygon)));
+        }
+
+        if (shapes.length === 0 && lines.length > 0) {
+            for (const line of lines) {
+                const dx = line.x2 - line.x1;
+                const dy = line.y2 - line.y1;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const thickness = Math.max(1, length * 0.03);
+                const minX = Math.min(line.x1, line.x2) - thickness / 2;
+                const minY = Math.min(line.y1, line.y2) - thickness / 2;
+
+                shapes.push(Geometry.createRectangle(
+                    minX,
+                    minY,
+                    Math.max(length, thickness),
+                    thickness
+                ));
+            }
+        }
+
         return shapes;
     }
 
     static combineLineSegments(lineSegments) {
-        // Sammle alle Punkte aus allen Linien
-        const allPoints = [];
-        
-        lineSegments.forEach((line, idx) => {
-            allPoints.push({ x: line.x1, y: line.y1, lineIdx: idx, pointType: 'start' });
-            allPoints.push({ x: line.x2, y: line.y2, lineIdx: idx, pointType: 'end' });
-        });
+        const segments = lineSegments.map((line, idx) => ({ ...line, used: false, idx }));
+        const polygons = [];
+        const tolerance = 0.5;
 
-        console.log('Total points from', lineSegments.length, 'lines:', allPoints.length);
+        for (const segment of segments) {
+            if (segment.used) continue;
 
-        // Finde den Mittelpunkt aller Punkte
-        let centerX = 0, centerY = 0;
-        allPoints.forEach(p => {
-            centerX += p.x;
-            centerY += p.y;
-        });
-        centerX /= allPoints.length;
-        centerY /= allPoints.length;
+            const chain = [
+                { x: segment.x1, y: segment.y1 },
+                { x: segment.x2, y: segment.y2 }
+            ];
+            segment.used = true;
 
-        console.log('Center point:', centerX, centerY);
+            let extended = true;
+            while (extended) {
+                extended = false;
 
-        // Sortiere Punkte nach Winkel vom Mittelpunkt (Polar Sort)
-        const sortedPoints = allPoints.sort((a, b) => {
-            const angleA = Math.atan2(a.y - centerY, a.x - centerX);
-            const angleB = Math.atan2(b.y - centerY, b.x - centerX);
-            return angleA - angleB;
-        });
+                for (const candidate of segments) {
+                    if (candidate.used) continue;
 
-        // Entferne duplizierte/sehr nahe Punkte
-        const uniquePoints = [];
-        const tolerance = 2.0;
-        
-        for (let i = 0; i < sortedPoints.length; i++) {
-            const p = sortedPoints[i];
-            let isDuplicate = false;
-            
-            // Prüfe gegen bereits hinzugefügte Punkte
-            for (let j = 0; j < uniquePoints.length; j++) {
-                const existing = uniquePoints[j];
-                const dx = p.x - existing.x;
-                const dy = p.y - existing.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist < tolerance) {
-                    isDuplicate = true;
-                    break;
+                    const start = chain[0];
+                    const end = chain[chain.length - 1];
+                    const p1 = { x: candidate.x1, y: candidate.y1 };
+                    const p2 = { x: candidate.x2, y: candidate.y2 };
+
+                    if (this.pointsClose(end, p1, tolerance)) {
+                        chain.push(p2);
+                        candidate.used = true;
+                        extended = true;
+                        break;
+                    }
+
+                    if (this.pointsClose(end, p2, tolerance)) {
+                        chain.push(p1);
+                        candidate.used = true;
+                        extended = true;
+                        break;
+                    }
+
+                    if (this.pointsClose(start, p1, tolerance)) {
+                        chain.unshift(p2);
+                        candidate.used = true;
+                        extended = true;
+                        break;
+                    }
+
+                    if (this.pointsClose(start, p2, tolerance)) {
+                        chain.unshift(p1);
+                        candidate.used = true;
+                        extended = true;
+                        break;
+                    }
                 }
             }
-            
-            if (!isDuplicate) {
-                uniquePoints.push({ x: p.x, y: p.y });
+
+            if (chain.length >= 4 && this.pointsClose(chain[0], chain[chain.length - 1], tolerance)) {
+                chain.pop();
+                const cleaned = this.cleanPolygonPoints(chain);
+                if (cleaned.length >= 3) {
+                    polygons.push(cleaned);
+                }
             }
         }
 
-        console.log('Unique points after deduplication:', uniquePoints.length);
-
-        // Erstelle ein großes Polygon aus allen Punkten
-        if (uniquePoints.length >= 3) {
-            console.log('Created single polygon from all', uniquePoints.length, 'points');
-            return [Geometry.createPolygon(uniquePoints)];
-        }
-
-        return [];
+        return polygons;
     }
 
-    static pointsClose(p1, p2, tolerance) {
+    static cleanPolygonPoints(points) {
+        const tolerance = 0.0001;
+        const cleaned = [];
+
+        for (const point of points) {
+            const isDuplicate = cleaned.some(existing => this.pointsClose(existing, point, tolerance));
+            if (!isDuplicate) {
+                cleaned.push(point);
+            }
+        }
+
+        return cleaned;
+    }
+
+    static arcToLineSegments(arc, segments = 18) {
+        const points = [];
+        const startRad = (arc.startAngle * Math.PI) / 180;
+        let endRad = (arc.endAngle * Math.PI) / 180;
+
+        if (endRad <= startRad) {
+            endRad += Math.PI * 2;
+        }
+
+        const step = (endRad - startRad) / Math.max(2, segments);
+        for (let i = 0; i <= segments; i++) {
+            const angle = startRad + step * i;
+            points.push({
+                x: arc.x + Math.cos(angle) * arc.radius,
+                y: arc.y + Math.sin(angle) * arc.radius
+            });
+        }
+
+        const lineSegments = [];
+        for (let i = 0; i < points.length - 1; i++) {
+            lineSegments.push({
+                type: 'line',
+                x1: points[i].x,
+                y1: points[i].y,
+                x2: points[i + 1].x,
+                y2: points[i + 1].y
+            });
+        }
+
+        return lineSegments;
+    }
+
+    static pointsClose(p1, p2, tolerance = 0.001) {
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
-        return Math.sqrt(dx * dx + dy * dy) < tolerance;
+        return Math.sqrt(dx * dx + dy * dy) <= tolerance;
     }
 
     static createSampleDXF() {
