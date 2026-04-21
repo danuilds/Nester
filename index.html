@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nester - Paper Nesting Tool</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Nester</h1>
+            <p class="subtitle">Paper Segment & Ring Nesting Optimizer</p>
+        </header>
+
+        <main>
+            <div class="content-grid">
+                <!-- Left Panel: Input Controls -->
+                <aside class="control-panel">
+                    <div class="section">
+                        <h2>Paper Size</h2>
+                        <div class="input-group">
+                            <label for="paperWidth">Width (mm):</label>
+                            <input type="number" id="paperWidth" value="1000" min="100" step="10">
+                        </div>
+                        <div class="input-group">
+                            <label for="paperHeight">Height (mm):</label>
+                            <input type="number" id="paperHeight" value="1000" min="100" step="10">
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Margins & Spacing</h2>
+                        <div class="input-group">
+                            <label for="marginTop">Top Margin (mm):</label>
+                            <input type="number" id="marginTop" value="10" min="0" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label for="marginLeft">Left Margin (mm):</label>
+                            <input type="number" id="marginLeft" value="10" min="0" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label for="padding">Segment Spacing (mm):</label>
+                            <input type="number" id="padding" value="5" min="0" step="1">
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Geometry</h2>
+                        <div class="input-group">
+                            <label for="dxfUpload">Upload DXF File:</label>
+                            <input type="file" id="dxfUpload" accept=".dxf">
+                        </div>
+                        <button id="loadSample" class="btn-secondary" style="width: 100%; margin-top: 8px;">Load Sample DXF</button>
+                        <div id="geometryInfo" class="info-box">
+                            No file loaded
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Orientation Options</h2>
+                        <div class="input-group">
+                            <label for="orientations">Number of Orientations:</label>
+                            <select id="orientations">
+                                <option value="1">1 (No Rotation)</option>
+                                <option value="2">2 (0°, 90°)</option>
+                                <option value="4">4 (0°, 90°, 180°, 270°)</option>
+                                <option value="8">8 (45° steps)</option>
+                                <option value="16">16 (22.5° steps)</option>
+                                <option value="360">360 (All angles)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Algorithm Settings</h2>
+                        <div class="input-group">
+                            <label for="sheetsLimit">Max Sheets:</label>
+                            <input type="number" id="sheetsLimit" value="10" min="1" max="100" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label for="populationSize">Population Size:</label>
+                            <input type="number" id="populationSize" value="50" min="10" max="200" step="10">
+                        </div>
+                        <div class="input-group">
+                            <label for="generations">Generations:</label>
+                            <input type="number" id="generations" value="100" min="10" max="500" step="10">
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="runOptimization" class="btn-primary">Run Optimization</button>
+                        <button id="resetForm" class="btn-secondary">Reset</button>
+                    </div>
+                </aside>
+
+                <!-- Right Panel: Visualization & Results -->
+                <section class="main-content">
+                    <div class="canvas-container">
+                        <canvas id="nestingCanvas"></canvas>
+                        <div id="canvasInfo" class="canvas-info">
+                            <p>Load a DXF file and click "Run Optimization" to see results</p>
+                        </div>
+                    </div>
+
+                    <div class="results-panel">
+                        <h2>Results</h2>
+                        <div id="resultsInfo" class="info-box">
+                            <p>Waiting for optimization...</p>
+                        </div>
+                        <div id="statisticsTable"></div>
+                        <div class="button-group">
+                            <button id="exportResults" class="btn-secondary" disabled>Export Results</button>
+                            <button id="nextSheet" class="btn-secondary" disabled>Next Sheet</button>
+                            <button id="prevSheet" class="btn-secondary" disabled>Previous Sheet</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 Nester - Paper Nesting Optimization Tool</p>
+        </footer>
+    </div>
+
+    <!-- Script Files -->
+    <script src="js/geometry.js"></script>
+    <script src="js/dxf-parser.js"></script>
+    <script src="js/visualization.js"></script>
+    <script src="js/nester.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
